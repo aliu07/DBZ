@@ -13,9 +13,12 @@ chrono = { version = "0.4.38", features = ["serde"] }
 dotenv = "0.15.0"
 google-sheets4 = "6.0.0"
 hyper = { version = "1.5.1", features = ["client"] }
+hyper-rustls = "0.27.3"
 mongodb = "3.1.0"
 reqwest = "0.12.9"
+rustls = { version = "0.23.18", features = ["aws_lc_rs", "ring"] }
 serde = { version = "1.0.215", features = ["derive"] }
 thiserror = "2.0.3"
 tokio = { version = "1.41.1", features = ["macros", "rt-multi-thread"] }
+tokio-cron-scheduler = "0.13.0"
 yup-oauth2 = "11.0.0"

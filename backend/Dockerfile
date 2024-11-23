@@ -28,6 +28,8 @@ RUN apt-get update && \
 # Set the working directory
 WORKDIR /app
 
+RUN mkdir -p /app/credentials
+
 # Copy the binary from builder
 COPY --from=builder /app/target/release/backend .
 
