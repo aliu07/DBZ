@@ -1,31 +1,41 @@
-use axum::{extract::State, routing::post, Json, Router};
+use axum::{extract::State, middleware, routing::post, Json, Router};
 use mongodb::bson::oid::ObjectId;
+use tower_http::trace::TraceLayer;
 
-use crate::db::{db::DB, practice::{Practice, PracticeError}, user::{Side, User}};
+use crate::{db::{db::DB, practice::{Practice, PracticeError}}, logging::middleware::logging_middleware};
 use std::sync::Arc;
 
 use super::{
-    requests::{CreatePracticeRequest, SignupRequest},
+    requests::{CreatePracticeRequest, SignupRequest, CreateDiscordUser},
     responses::SignupResponse,
 };
 
 pub fn create_router(db: Arc<DB>) -> Router {
     Router::new()
-        .route("/register", post(register_user))
+        .route("/register", post(register_discord_user))
         .route("/practice", post(create_practice))
         .route("/practice/signup", post(signup_for_practice))
+        .layer(middleware::from_fn(logging_middleware))
+        .layer(TraceLayer::new_for_http())
         .with_state(db)
 }
 
-async fn register_user(
+async fn register_discord_user(
     State(db): State<Arc<DB>>,
-    Json(req): Json<User>,
-) -> Result<Json<User>, String> {
-    db.create_user_from_sheet(&req)
+    Json(req): Json<CreateDiscordUser>,
+) -> Result<Json<String>, String> {
+    let mut user = db.get_user_by_email(&req.email)
         .await
-        .map_err(|e| e.to_string())?;
+    .map_err(|e| e.to_string())?
+    .ok_or("User not found with given email")?;
 
-    Ok(Json(req))
+    return match user.discord_id {
+      Some(_) => Err("Discord id already associated to email".to_string()),
+      None => {
+        user.discord_id = Some(req.discord_id);
+        Ok(Json("Successfully registerd discord id to user".to_string()))
+      }
+    }
 }
 
 async fn create_practice(
