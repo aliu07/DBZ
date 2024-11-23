@@ -1,5 +1,9 @@
 import discord
-from discord.etx import commands
+from discord.ext import commands
+import os
+from dotenv import load_dotenv
+
+TOKEN = os.getenv('DISCORD_TOKEN')
 
 client = commands.Bot(command_prefix = "!")
 
@@ -12,4 +16,4 @@ async def on_ready():
 async def hello(ctx):
     await ctx.send("Hello, DBZ Bot ready")
 
-client.run()
+client.run(TOKEN)
