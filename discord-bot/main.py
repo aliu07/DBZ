@@ -1,58 +1,39 @@
 from typing import Final
 import os
 from dotenv import load_dotenv
-from discord import Intents, Client, Message
-from responses import get_response
+from discord import Intents, Client
 
-# STEP 0: LOAD OUR TOKEN FROM SOMEWHERE SAFE
+# LOAD TOKEN
 load_dotenv()
 TOKEN: Final[str] = os.getenv('DISCORD_TOKEN') or ''
 if not TOKEN:
     raise ValueError("DISCORD_TOKEN environment variable is not set")
 
-# STEP 1: BOT SETUP
+# BOT SETUP
 intents: Intents = Intents.default()
+intents.members = True
+intents.presences = True
+intents.messages = True
 intents.message_content = True  # NOQA
 client: Client = Client(intents=intents)
 
 
-# STEP 2: MESSAGE FUNCTIONALITY
-async def send_message(message: Message, user_message: str) -> None:
-    if not user_message:
-        print('(Message was empty because intents were not enabled probably)')
-        return
-
-    if is_private := user_message[0] == '?':
-        user_message = user_message[1:]
-
-    try:
-        response: str = get_response(user_message)
-        await message.author.send(response) if is_private else await message.channel.send(response)
-    except Exception as e:
-        print(e)
-
-
-# STEP 3: HANDLING THE STARTUP FOR OUR BOT
+# HANDLING BOT STARTUP
 @client.event
 async def on_ready() -> None:
     print(f'{client.user} is now running!')
 
 
-# STEP 4: HANDLING INCOMING MESSAGES
+# WHEN MEMBER JOINS
 @client.event
-async def on_message(message: Message) -> None:
-    if message.author == client.user:
-        return
-
-    username: str = str(message.author)
-    user_message: str = message.content
-    channel: str = str(message.channel)
-
-    print(f'[{channel}] {username}: "{user_message}"')
-    await send_message(message, user_message)
+async def on_member_join(member) -> None:
+    try:
+        await member.send(f"Welcome to the server, {member.name}!")
+    except Exception as e:
+        print(f"Couldn't send direct message to {member.name}: {e}")
 
 
-# STEP 5: MAIN ENTRY POINT
+# MAIN ENTRY POINT
 def main() -> None:
     client.run(token=TOKEN)
 
