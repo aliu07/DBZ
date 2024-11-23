@@ -1,28 +1,31 @@
 # docker-compose.yml
-
-version: "3.8"
-
 services:
   mongodb:
     image: mongo:6.0
     container_name: mongodb
     restart: always
     environment:
-      MONGO_INITDB_DATABASE: discord_bot_db
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=example
+      - MONGO_INITDB_DATABASE=discord_bot_db
     volumes:
       - mongodb_data:/data/db
     ports:
       - "27017:27017"
+    networks:
+      - app-network
 
   backend:
     build:
       context: ./backend
     container_name: backend
     restart: always
-    depends_on:
-      - mongodb
     environment:
-      DATABASE_URL: mongodb://mongodb:27017/your_db_name
+      - MONGO_USERNAME=root
+      - MONGO_PASSWORD=example
+      - MONGO_HOST=mongodb
+      - MONGO_PORT=27017
+      - MONGO_DB_NAME=discord_bot_db
     ports:
       - "8000:8000"
     networks:

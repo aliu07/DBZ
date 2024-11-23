@@ -16,8 +16,12 @@ impl DB {
         let port = std::env::var("MONGO_PORT").unwrap_or_else(|_| "27017".to_string());
         let db_name = std::env::var("MONGO_DB_NAME").expect("MONGO_DB_NAME must be set");
 
+        println!("{}", username);
+        println!("{}", password);
+
+
         let mongo_uri = format!(
-            "mongodb://{}:{}@{}:{}/{}",
+            "mongodb://{}:{}@{}:{}/{}?authSource=admin",
             username, password, host, port, db_name
         );
 

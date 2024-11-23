@@ -1,7 +1,7 @@
 # backend/Dockerfile
 
 # Stage 1: Build the application
-FROM rust:latest AS builder
+FROM rust:1.74 AS builder
 
 # Set the working directory inside the container
 WORKDIR /app
@@ -9,29 +9,30 @@ WORKDIR /app
 # Copy the Cargo.toml and Cargo.lock files
 COPY Cargo.toml Cargo.lock ./
 
-# Download dependencies
-RUN cargo fetch
+# Copy the actual source code
+COPY . .
 
-# Copy the source code
-COPY src ./src
-
-# Build the application in release mode
+# Build the application
 RUN cargo build --release
 
-# Stage 2: Create a minimal image
-FROM debian:buster-slim
+# Stage 2: Create the runtime image
+FROM debian:bookworm-slim
 
 # Install necessary dependencies
-RUN apt-get update && apt-get install -y libssl-dev && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ca-certificates \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
 WORKDIR /app
 
-# Copy the binary from the builder stage
+# Copy the binary from builder
 COPY --from=builder /app/target/release/backend .
 
-# Expose the application port
+# Expose the port
 EXPOSE 8000
 
-# Define the command to run the application
+# Run the binary
 CMD ["./backend"]
