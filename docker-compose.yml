@@ -1,0 +1,62 @@
+# docker-compose.yml
+
+version: "3.8"
+
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_DATABASE: discord_bot_db
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"
+
+  backend:
+    build:
+      context: ./backend
+    container_name: backend
+    restart: always
+    depends_on:
+      - mongodb
+    environment:
+      DATABASE_URL: mongodb://mongodb:27017/your_db_name
+    ports:
+      - "8000:8000"
+    networks:
+      - app-network
+
+  discord-bot:
+    build:
+      context: ./discord-bot
+    container_name: discord-bot
+    restart: always
+    depends_on:
+      - mongodb
+      - backend
+    environment:
+      DISCORD_TOKEN: your_discord_token_here
+      MONGO_URI: mongodb://mongodb:27017/discord_bot_db
+    networks:
+      - app-network
+
+  js-website:
+    build:
+      context: ./frontend
+    container_name: frontend
+    restart: always
+    depends_on:
+      - backend
+    ports:
+      - "3000:80" # Exposing nginx on port 3000
+    networks:
+      - app-network
+
+volumes:
+  mongodb_data:
+
+networks:
+  app-network:
+    driver: bridge

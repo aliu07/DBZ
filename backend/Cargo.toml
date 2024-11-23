@@ -3,4 +3,13 @@ name = "backend"
 version = "0.1.0"
 edition = "2021"
 
+[[bin]]
+name = "backend"
+path = "src/main.rs"
+
 [dependencies]
+axum = "0.7.9"
+dotenv = "0.15.0"
+mongodb = "3.1.0"
+serde = { version = "1.0.215", features = ["derive"] }
+tokio = { version = "1.41.1", features = ["macros", "rt-multi-thread"] }
