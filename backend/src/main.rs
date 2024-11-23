@@ -3,11 +3,15 @@ mod logging;
 mod router;
 mod sheets;
 
+use db::practice::Practice;
+use router::responses::PracticeStartInfo;
 use dotenv::dotenv;
 use sheets::sheets::SheetsClient;
+use std::error::Error;
 use std::sync::Arc;
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tracing::info;
+use reqwest::Client as HttpClient;
 
 use crate::db::db::DB;
 use crate::router::router::create_router;
@@ -53,7 +57,55 @@ async fn main() {
 
     scheduler.start().await.unwrap();
 
+    let db_clone_notifications = db.clone();
+    scheduler
+        .add(
+            Job::new_async("0 */1 * * * *", move |_uuid, _l| {
+                // Every minute
+                let db = db_clone_notifications.clone();
+                Box::pin(async move {
+                    info!("Checking for practices opening soon");
+                    match db.get_practices_opening_soon().await {
+                        Ok(practices) => {
+                          info!("Got practices: {:?}", practices);
+                            for practice in practices {
+                                if let Err(e) = notify_discord_bot(&practice).await {
+                                    eprintln!("Error notifying Discord bot: {}", e);
+                                } else {
+                                    info!("Successfully notified Discord bot for practice {}", practice.id.unwrap());
+                                }
+                            }
+                        }
+                        Err(e) => eprintln!("Error checking for opening practices: {}", e),
+                    }
+                })
+            })
+            .unwrap(),
+        )
+        .await
+        .unwrap();
     info!("Server starting on port 8000");
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
+}
+
+async fn notify_discord_bot(practice: &Practice) -> Result<(), Box<dyn Error>> {
+    let client = HttpClient::new();
+    let practice_info = PracticeStartInfo {
+        practice_id: practice.id.unwrap().to_string(),
+        start_time: practice.start_time,
+        end_time: practice.end_time,
+    };
+
+    let response = client
+        .post("http://localhost:3001/practice")
+        .json(&practice_info)
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        return Err(format!("Failed to notify Discord bot: {}", response.status()).into());
+    }
+
+    Ok(())
 }

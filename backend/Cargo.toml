@@ -9,13 +9,15 @@ path = "src/main.rs"
 
 [dependencies]
 axum = "0.7.9"
+bson = { version = "2.13.0", features = ["chrono-0_4"] }
 chrono = { version = "0.4.38", features = ["serde"] }
 dotenv = "0.15.0"
+futures = "0.3.31"
 google-sheets4 = "6.0.0"
 hyper = { version = "1.5.1", features = ["client"] }
 hyper-rustls = "0.27.3"
 mongodb = "3.1.0"
-reqwest = "0.12.9"
+reqwest = { version = "0.12.9", features = ["json"] }
 rustls = { version = "0.23.18", features = ["aws_lc_rs", "ring"] }
 serde = { version = "1.0.215", features = ["derive"] }
 thiserror = "2.0.3"

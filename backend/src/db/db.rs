@@ -1,6 +1,8 @@
+use chrono::Utc;
 use mongodb::{bson::{oid::ObjectId, doc}, Client, Database};
-use std::{collections, error::Error};
+use std:: error::Error;
 use tracing::info;
+use futures::TryStreamExt;
 
 use crate::sheets::models::SheetMetaData;
 
@@ -46,6 +48,12 @@ impl DB {
       Ok(collection.find_one(doc! {"email" : email}).await?)
     }
 
+    pub async fn update_user(&self, user: &User) -> Result<(), Box<dyn Error>> {
+      let collection = self.db.collection::<User>("users");
+      collection.replace_one(doc!{ "_id" : &user.id.unwrap()}, user).await?;
+      Ok(())
+    }
+
     pub async fn create_practice(&self, practice: &Practice) -> Result<(), Box<dyn Error>> {
         let collection = self.db.collection::<Practice>("practices");
         collection.insert_one(practice).await?;
@@ -77,5 +85,29 @@ impl DB {
       let collection = self.db.collection::<SheetMetaData>("sheets_metadata");
       collection.replace_one(doc! {"_id" : &metadata.sheet_id}, metadata).await?;
       Ok(())
+    }
+    pub async fn get_practices_opening_soon(&self) -> Result<Vec<Practice>, Box<dyn Error + Send + Sync>> {
+        let collection = self.db.collection::<Practice>("practices");
+        let now = Utc::now();
+        let one_minute_from_now = now + chrono::Duration::minutes(1);
+
+        let unlock_time_start = now;
+        let unlock_time_end = one_minute_from_now;
+
+        let filter = doc! {
+            "start_time": {
+                "$gte": unlock_time_start + chrono::Duration::hours(1),
+                "$lte": unlock_time_end + chrono::Duration::hours(1)
+            }
+        };
+
+        let mut cursor = collection.find(filter).await?;
+        let mut practices = Vec::new();
+
+        while let Some(practice) = cursor.try_next().await? {
+            practices.push(practice);
+        }
+
+        Ok(practices)
     }
 }

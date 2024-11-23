@@ -29,8 +29,11 @@ services:
       - GOOGLE_CREDENTIALS_PATH=/app/credentials/sheets-credentials.json
       - FORM_ID=1Gw84_lGeBANXNUhJ7aF6moUNKZt2GMKQfWr4X7nUlos
       - FORM_RANGE=Form Responses 1!A:H
+      - CARGO_BUILD_JOBBS=4
     volumes:
       - ./sheets-credentials.json:/app/credentials/sheets-credentials.json:ro
+      - cargo-cache:/usr/local/cargo/registry
+      - target-cache:/usr/src/app/backend/target
     ports:
       - "8000:8000"
     networks:
@@ -68,6 +71,8 @@ services:
 
 volumes:
   mongodb_data:
+  cargo-cache: # Cargo registry cache
+  target-cache: # Build artifacts cache
 
 networks:
   app-network:
