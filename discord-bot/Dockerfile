@@ -17,5 +17,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the bot source code
 COPY *.py .
 
+# Expose the port
+EXPOSE 3001
+
 # Define the command to run the bot
 CMD ["python", "main.py"]
