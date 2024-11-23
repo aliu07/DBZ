@@ -40,8 +40,10 @@ services:
       - mongodb
       - backend
     environment:
-      DISCORD_TOKEN: your_discord_token_here
-      MONGO_URI: mongodb://mongodb:27017/discord_bot_db
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - MONGO_URI=mongodb://mongodb:27017/discord_bot_db
+    env_file:
+      - .env
     networks:
       - app-network
 
