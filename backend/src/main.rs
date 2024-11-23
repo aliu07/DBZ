@@ -98,7 +98,7 @@ async fn notify_discord_bot(practice: &Practice) -> Result<(), Box<dyn Error>> {
     };
 
     let response = client
-        .post("http://localhost:3001/practice")
+        .post("http://discord-bot:3001/practice")
         .json(&practice_info)
         .send()
         .await?;

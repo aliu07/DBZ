@@ -89,15 +89,18 @@ impl DB {
     pub async fn get_practices_opening_soon(&self) -> Result<Vec<Practice>, Box<dyn Error + Send + Sync>> {
         let collection = self.db.collection::<Practice>("practices");
         let now = Utc::now();
-        let one_minute_from_now = now + chrono::Duration::minutes(1);
+        let one_hour_from_now = now + chrono::Duration::hours(1);
 
-        let unlock_time_start = now;
-        let unlock_time_end = one_minute_from_now;
+        info!("Time now: {}", now);
+        info!("Time in an hour: {}", one_hour_from_now);
 
+        // Filter for practices that:
+        // 1. Start after current time
+        // 2. Start before one hour from now
         let filter = doc! {
             "start_time": {
-                "$gte": unlock_time_start + chrono::Duration::hours(1),
-                "$lte": unlock_time_end + chrono::Duration::hours(1)
+                "$gt": now.to_rfc3339(),
+                "$lt": one_hour_from_now.to_rfc3339()
             }
         };
 

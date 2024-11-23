@@ -1,2 +1,6 @@
 discord.py
 python-dotenv
+fastapi
+uvicorn
+pydantic
+aiohttp
