@@ -3,4 +3,5 @@ from datetime import datetime
 
 class Practice(BaseModel):
     practice_id: str
-    datetime: datetime
+    start_time: datetime
+    end_time: datetime

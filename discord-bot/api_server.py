@@ -23,7 +23,7 @@ async def create_practice(practice: Practice):
     channel = discord_client.get_channel(channel_id)
 
     if channel:
-        await channel.send(f"Practice on {practice.datetime.strftime('%Y-%m-%d %H:%M')} is open!")
+        await channel.send(f"Practice on {practice.start_time.strftime('%Y-%m-%d %H:%M')} is open!")
         return {
             "status": "success",
             "message": "Practice notification sent"
