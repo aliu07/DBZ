@@ -12,8 +12,8 @@ use tokio::sync::Mutex;
 use tracing::info;
 use yup_oauth2::{read_service_account_key, ServiceAccountAuthenticator};
 
-use crate::db::user::User;
 use super::models::{FormResponse, SheetMetaData};
+use crate::db::user::User;
 use crate::DB;
 
 pub struct SheetsClient {
@@ -21,7 +21,7 @@ pub struct SheetsClient {
     sheet_id: String,
     range: String,
     last_row: Arc<Mutex<usize>>,
-    db: Arc<DB>
+    db: Arc<DB>,
 }
 
 impl SheetsClient {
@@ -42,7 +42,23 @@ impl SheetsClient {
             &sheet_id, &range
         );
 
+        if db.get_sheet_metadata(&sheet_id).await?.is_none() {
+            info!(
+                "No metadata found for sheet {}, creating initial metadata",
+                sheet_id
+            );
+            let initial_metadata = SheetMetaData {
+                sheet_id: sheet_id.clone(),
+                last_processed_row: 1,
+            };
+            db.create_sheet_metadata(&initial_metadata).await?;
+        }
+
+        let last_row = Self::get_last_processed_row(&db, &sheet_id).await?;
+
+        info!("Read last processed row as : {}", last_row);
         let sheets_client = Self::new(&credentials_path, &sheet_id, &range, db).await?;
+        *sheets_client.last_row.lock().await = last_row;
         info!("Form sheets client initialized successfully");
         Ok(sheets_client)
     }
@@ -61,7 +77,11 @@ impl SheetsClient {
             "Connecting to sheet ID: {} with range {}",
             &sheet_id, &range
         );
+        let last_row = Self::get_last_processed_row(&db, &sheet_id).await?;
+
+        info!("Read last processed row as : {}", last_row);
         let sheets_client = Self::new(&credentials_path, &sheet_id, &range, db).await?;
+        *sheets_client.last_row.lock().await = last_row;
 
         info!("Practice sheets client initialized successfully");
         Ok(sheets_client)
@@ -82,7 +102,11 @@ impl SheetsClient {
             &sheet_id, &range
         );
 
+        let last_row = Self::get_last_processed_row(&db, &sheet_id).await?;
+
+        info!("Read last processed row as : {}", last_row);
         let sheets_client = Self::new(&credentials_path, &sheet_id, &range, db).await?;
+        *sheets_client.last_row.lock().await = last_row;
 
         info!("Fitness sheets client initialized successfully");
         Ok(sheets_client)
@@ -92,7 +116,7 @@ impl SheetsClient {
         credentials_path: &str,
         sheet_id: &str,
         range: &str,
-        db: Arc<DB>
+        db: Arc<DB>,
     ) -> Result<Self, Box<dyn Error>> {
         rustls::crypto::ring::default_provider()
             .install_default()
@@ -128,23 +152,43 @@ impl SheetsClient {
     }
 
     async fn get_last_processed_row(db: &DB, sheet_id: &str) -> Result<usize, Box<dyn Error>> {
-      let parsed_sheet_id = ObjectId::parse_str(sheet_id)?;
-      let metadata = db.get_sheet_metadata(parsed_sheet_id).await?;
-      Ok(metadata.map_or(1, |m| m.last_processed_row))
+        info!(
+            "Attempting to get last processed row for sheet: {}",
+            sheet_id
+        );
+        match db.get_sheet_metadata(sheet_id).await? {
+            Some(metadata) => {
+                info!(
+                    "Found existing metadata: last_processed_row = {}",
+                    metadata.last_processed_row
+                );
+                Ok(metadata.last_processed_row)
+            }
+            None => {
+                info!("No existing metadata found, creating initial metadata");
+                let metadata = SheetMetaData {
+                    sheet_id: sheet_id.to_string(),
+                    last_processed_row: 1,
+                };
+                db.update_sheet_metadata(&metadata).await?;
+                info!("Created initial metadata for sheet {}", sheet_id);
+                Ok(1)
+            }
+        }
     }
 
     async fn update_last_processed_row(&self, row: usize) -> Result<(), Box<dyn Error>> {
-      let metadata = SheetMetaData {
-        sheet_id: self.sheet_id.clone(),
-        last_processed_row: row,
-      };
+        let metadata = SheetMetaData {
+            sheet_id: self.sheet_id.clone(),
+            last_processed_row: row,
+        };
 
-      self.db.update_sheet_metadata(&metadata).await?;
-      Ok(())
+        self.db.update_sheet_metadata(&metadata).await?;
+        Ok(())
     }
 
     pub async fn fetch_new_form_responses(&self) -> Result<Vec<FormResponse>, Box<dyn Error>> {
-      info!("Fetching new form responses");
+        info!("Fetching new form responses");
         let result = self
             .service
             .spreadsheets()
@@ -155,9 +199,9 @@ impl SheetsClient {
         let values = match result.1.values {
             Some(vals) => vals,
             None => {
-              info!("No new responses found");
-              return Ok(vec![])
-            },
+                info!("No new responses found");
+                return Ok(vec![]);
+            }
         };
 
         let mut last_row = self.last_row.lock().await;
@@ -180,6 +224,13 @@ impl SheetsClient {
 
             new_responses.push(form_response);
             *last_row += 1;
+        }
+        if *last_row > start {
+            info!(
+                "Updating last processed row from {} to {}",
+                start, *last_row
+            );
+            self.update_last_processed_row(*last_row).await?;
         }
         info!("Fetched and added {} new responses", new_responses.len());
         Ok(new_responses)

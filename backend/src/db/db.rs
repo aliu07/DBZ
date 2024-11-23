@@ -1,8 +1,11 @@
 use chrono::Utc;
-use mongodb::{bson::{oid::ObjectId, doc}, Client, Database};
-use std:: error::Error;
-use tracing::info;
 use futures::TryStreamExt;
+use mongodb::{
+    bson::{doc, oid::ObjectId},
+    Client, Database,
+};
+use std::error::Error;
+use tracing::info;
 
 use crate::sheets::models::SheetMetaData;
 
@@ -44,14 +47,16 @@ impl DB {
     }
 
     pub async fn get_user_by_email(&self, email: &str) -> Result<Option<User>, Box<dyn Error>> {
-      let collection = self.db.collection::<User>("users");
-      Ok(collection.find_one(doc! {"email" : email}).await?)
+        let collection = self.db.collection::<User>("users");
+        Ok(collection.find_one(doc! {"email" : email}).await?)
     }
 
     pub async fn update_user(&self, user: &User) -> Result<(), Box<dyn Error>> {
-      let collection = self.db.collection::<User>("users");
-      collection.replace_one(doc!{ "_id" : &user.id.unwrap()}, user).await?;
-      Ok(())
+        let collection = self.db.collection::<User>("users");
+        collection
+            .replace_one(doc! { "_id" : &user.id.unwrap()}, user)
+            .await?;
+        Ok(())
     }
 
     pub async fn create_practice(&self, practice: &Practice) -> Result<(), Box<dyn Error>> {
@@ -60,33 +65,64 @@ impl DB {
         Ok(())
     }
 
-    pub async fn get_practice(&self, practice_id: ObjectId) -> Result<Option<Practice>, Box<dyn Error>> {
-      let collection = self.db.collection::<Practice>("practices");
-      Ok(collection.find_one(doc! {"_id": practice_id}).await?)
+    pub async fn get_practice(
+        &self,
+        practice_id: ObjectId,
+    ) -> Result<Option<Practice>, Box<dyn Error>> {
+        let collection = self.db.collection::<Practice>("practices");
+        Ok(collection.find_one(doc! {"_id": practice_id}).await?)
     }
 
     pub async fn get_user(&self, user_id: ObjectId) -> Result<Option<User>, Box<dyn Error>> {
-      let collection = self.db.collection::<User>("users");
-      Ok(collection.find_one(doc! {"_id" : user_id}).await?)
+        let collection = self.db.collection::<User>("users");
+        Ok(collection.find_one(doc! {"_id" : user_id}).await?)
     }
 
     pub async fn update_practice(&self, practice: &Practice) -> Result<(), Box<dyn Error>> {
-      let collection = self.db.collection::<Practice>("practices");
-      collection.replace_one(doc! {"_id" : practice.id.unwrap()}, practice).await?;
-      Ok(())
+        let collection = self.db.collection::<Practice>("practices");
+        collection
+            .replace_one(doc! {"_id" : practice.id.unwrap()}, practice)
+            .await?;
+        Ok(())
     }
 
-    pub async fn get_sheet_metadata(&self, sheet_id: ObjectId) -> Result<Option<SheetMetaData>, Box<dyn Error>> {
-      let collection = self.db.collection::<SheetMetaData>("sheets_metadata");
-      Ok(collection.find_one(doc! {"_id" : sheet_id}).await?)
+    pub async fn get_sheet_metadata(
+        &self,
+        sheet_id: &str,
+    ) -> Result<Option<SheetMetaData>, Box<dyn Error>> {
+        let collection = self.db.collection::<SheetMetaData>("sheets_metadata");
+        Ok(collection.find_one(doc! {"_id" : sheet_id}).await?)
     }
 
-    pub async fn update_sheet_metadata(&self, metadata: &SheetMetaData) -> Result<(), Box<dyn Error>> {
-      let collection = self.db.collection::<SheetMetaData>("sheets_metadata");
-      collection.replace_one(doc! {"_id" : &metadata.sheet_id}, metadata).await?;
-      Ok(())
+    pub async fn create_sheet_metadata(
+        &self,
+        metadata: &SheetMetaData,
+    ) -> Result<(), Box<dyn Error>> {
+        let collection = self.db.collection::<SheetMetaData>("sheets_metadata");
+        info!(
+            "Creating new sheet metadata for sheet: {}",
+            metadata.sheet_id
+        );
+        collection.insert_one(metadata).await?;
+        info!("Successfully created sheet metadata");
+        Ok(())
     }
-    pub async fn get_practices_opening_soon(&self) -> Result<Vec<Practice>, Box<dyn Error + Send + Sync>> {
+
+    pub async fn update_sheet_metadata(
+        &self,
+        metadata: &SheetMetaData,
+    ) -> Result<(), Box<dyn Error>> {
+        let collection = self.db.collection::<SheetMetaData>("sheets_metadata");
+        info!("Updating sheet metadata for sheet: {}", metadata.sheet_id);
+        collection
+            .replace_one(doc! {"_id" : &metadata.sheet_id}, metadata)
+            .await?;
+        info!("Successfully updated sheet metadata");
+        Ok(())
+    }
+    pub async fn get_practices_opening_soon(
+        &self,
+    ) -> Result<Vec<Practice>, Box<dyn Error + Send + Sync>> {
         let collection = self.db.collection::<Practice>("practices");
         let now = Utc::now();
         let one_hour_from_now = now + chrono::Duration::hours(1);
