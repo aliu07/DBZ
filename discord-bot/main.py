@@ -17,7 +17,7 @@ if not TOKEN:
     raise ValueError("DISCORD_TOKEN environment variable is not set")
 if not CHANNEL_ID:
     raise ValueError("CHANNEL_ID environment variable is not set")
-URL: Final[str] = os.getenv('BACKEND_API_URL') or ''
+URL: Final[str] = os.getenv('BACKEND_API_URL') or 'http://localhost:8000'  # Base URL
 
 # BOT SETUP
 intents: Intents = Intents.default()
@@ -27,14 +27,15 @@ intents.messages = True
 intents.message_content = True
 intents.guilds = True
 intents.dm_messages = True
+intents.dm_typing = True     # Add this
+intents.dm_reactions = True  # Add this
+intents.guild_messages = True # Add this
 
 client = commands.Bot(
     command_prefix='!',
     intents=intents,
     help_command=None
 )
-
-client.channel_id = CHANNEL_ID
 
 waiting_for_email = {}
 
@@ -52,7 +53,10 @@ async def send_to_backend(user_id: str, email: str):
             headers = {
                 "Content-Type": "application/json"
             }
-            async with session.post(URL, json=payload, headers=headers) as response:
+            full_url = f"{URL}/register"
+            print(f"Sending request to: {full_url}")  # Debug print
+            print(f"Payload: {payload}")
+            async with session.post(full_url, json=payload, headers=headers) as response:
                 if response.status == 200:
                     return True, "Registration successful!"
                 else:
