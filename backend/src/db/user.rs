@@ -29,6 +29,7 @@ pub struct User {
   pub last_name : String,
   pub gender : Gender,
   pub discord_id : String,
+  pub mcgill_id: String,
   pub user_type : UserType,
   pub side: Side
 }
