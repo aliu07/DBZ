@@ -1,0 +1,4 @@
+# DBZ/backend/.dockerignore
+target/
+.git/
+.env
