@@ -6,7 +6,7 @@ from typing import Final
 from api_server import init_api, app
 import aiohttp
 from dotenv import load_dotenv
-from discord import Intents, Client, Message, Embed, Color, DMChannel
+from discord import Intents, Client, Message, Embed, Color, DMChannel, Interaction
 from discord.ext import commands
 
 # LOAD TOKEN
@@ -43,6 +43,10 @@ def is_valid_email(email: str) -> bool:
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return bool(re.match(pattern, email))
 
+
+
+
+
 async def send_to_backend(user_id: str, email: str):
     async with aiohttp.ClientSession() as session:
         try:
@@ -67,10 +71,20 @@ async def send_to_backend(user_id: str, email: str):
         except Exception as e:
             return False, f"Unexpected error: {str(e)}"
 
+
+
+
+
+
 # HANDLING BOT STARTUP
 @client.event
 async def on_ready() -> None:
+    await client.tree.sync()
     print(f'{client.user} is now running!')
+
+
+
+
 
 # WHEN MEMBER JOINS
 @client.event
@@ -92,6 +106,9 @@ async def on_member_join(member) -> None:
 
     except Exception as e:
         print(f"Couldn't send direct message to {member.name}: {e}")
+
+
+
 
 
 # Handle DM messages for email collection
@@ -138,8 +155,16 @@ async def on_message(message: Message) -> None:
     # Process commands as normal
     await client.process_commands(message)
 
+
+
+
+
 async def run_discord_bot():
     await client.start(token=TOKEN)
+
+
+
+
 
 async def run_api_server():
     config = uvicorn.Config(
@@ -151,36 +176,58 @@ async def run_api_server():
     server = uvicorn.Server(config)
     await server.serve()
 
+
+
+
+
 # COMMANDS
-@client.command(name="schedule", description="Sends the semester's schedule")
-async def schedule(ctx):
-    await ctx.send(f'Here is the schedule {ctx.author.name}!')
 
-@client.command(name="lineup", description="Sends the next practice lineup")
-async def lineup(ctx):
-    await ctx.send(f'Here is the lineup {ctx.author.name}!')
+@client.tree.command(name="schedule", description="Sends the semester's schedule")
+async def schedule(interaction: Interaction):
+    await interaction.response.send_message(f'Here is the schedule {interaction.user.name}!')
 
-@client.command(name="help", description="Shows all available commands")
-async def help(ctx):
+
+
+@client.tree.command(name="lineup", description="Sends the next practice lineup")
+async def lineup(interaction: Interaction):
+    await interaction.response.send_message(f'Here is the lineup {interaction.user.name}!')
+
+
+
+@client.tree.command(name="fun_fact", description="Gives a fun fact!")
+async def fun_fact(interaction: Interaction):
+    await interaction.response.send_message(f'Hey {interaction.user.name}! \n Did you know that your VP Finance, Alexander has not been in ONE DBZ Tiktok??')
+
+
+
+@client.tree.command(name="help", description="Shows all available commands")
+async def help(interaction: Interaction):
     help_embed = Embed(
         title="Bot Commands",
         description="Here are all available commands:",
         color=Color.red()
     )
 
-    for command in client.commands:
+    for command in client.tree.walk_commands():
         help_embed.add_field(
             name=f"!{command.name}",
             value=command.description or "No description available",
             inline=False
         )
 
-    await ctx.send(embed=help_embed)
+    await interaction.response.send_message(embed=help_embed)
+
+
+
+
 
 # MAIN ENTRY POINT
 async def main() -> None:
     init_api(client)
     await asyncio.gather(run_discord_bot(), run_api_server())
+
+
+
 
 
 if __name__ == '__main__':
