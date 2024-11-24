@@ -41,6 +41,7 @@ async fn register_discord_user(
         Some(_) => Err("Discord id already associated to email".to_string()),
         None => {
             user.discord_id = Some(req.discord_id);
+            info!("updated mongo object: {:?}", user);
             db.update_user(&user).await;
             Ok(Json(
                 "Successfully registerd discord id to user".to_string(),

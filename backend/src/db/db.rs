@@ -54,7 +54,7 @@ impl DB {
     pub async fn update_user(&self, user: &User) -> Result<(), Box<dyn Error>> {
         let collection = self.db.collection::<User>("users");
         collection
-            .replace_one(doc! { "discord_id" : &user.id.unwrap()}, user)
+            .replace_one(doc! { "email" : &user.email}, user)
             .await?;
         Ok(())
     }
@@ -68,7 +68,7 @@ impl DB {
     pub async fn get_practice(
         &self,
         practice_id: ObjectId,
-    ) -> Result<Option<Practice>, Box<dyn Error>> {
+    ) -> Result<Option<Practice>, Box<dyn Error + Send + Sync>> {
         let collection = self.db.collection::<Practice>("practices");
         Ok(collection.find_one(doc! {"_id": practice_id}).await?)
     }
@@ -83,7 +83,7 @@ impl DB {
         Ok(collection.find_one(doc! {"discord_id" : discord_id}).await?)
     }
 
-    pub async fn update_practice(&self, practice: &Practice) -> Result<(), Box<dyn Error>> {
+    pub async fn update_practice(&self, practice: &Practice) -> Result<(), Box<dyn Error + Send + Sync>> {
         let collection = self.db.collection::<Practice>("practices");
         collection
             .replace_one(doc! {"_id" : practice.id.unwrap()}, practice)
