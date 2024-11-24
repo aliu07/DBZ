@@ -1,8 +1,7 @@
 from fastapi import FastAPI, HTTPException, status
-from models import Practice
+from models import Practice, WaitlistedMessageRequest
 from discord import Client, Embed, Color
 from datetime import *
-
 
 app = FastAPI()
 discord_client: Client | None = None
@@ -84,4 +83,30 @@ async def create_practice(practice: Practice):
     raise HTTPException(
         status_code=status.HTTP_404_NOT_FOUND,
         detail="Channel ID not found..."
+    )
+
+
+
+
+# include alex's models.py practice and discord id as a number 
+@app.post('/waitlisted-msg', status_code=status.HTTP_201_CREATED)
+async def send_msg_to_waitlisted_user(waitlisted_msg: WaitlistedMessageRequest):
+    if not discord_client:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Discord client not initialized..."
+        )
+    
+    user = discord_client.get_user(waitlisted_msg.discord_id)
+    if user:
+        message = f"Hey {user.name}, you have 5 MINUTES to react to claim for practice starting at {waitlisted_msg.practice.start_time} and ending at {waitlisted_msg.practice.end_time}!"
+        await user.send(message)
+        return {
+            "status": "success",
+            "message": "Message sent to user"
+        }
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="User not found..."
     )
