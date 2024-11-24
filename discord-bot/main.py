@@ -47,10 +47,6 @@ def is_valid_email(email: str) -> bool:
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return bool(re.match(pattern, email))
 
-
-
-
-
 async def register_user(user_id: str, email: str):
     async with aiohttp.ClientSession() as session:
         try:
@@ -101,7 +97,30 @@ async def sign_up_for_practice(practice_id: str, user_id: str):
         except Exception as e:
             return False, f"Unexpected error: {str(e)}", False
 
+async def unregister_from_practice(practice_id: str, user_id: str):
+    async with aiohttp.ClientSession() as session:
+        try:
+            payload = {
+                "practice_id": practice_id,
+                "discord_id": user_id
+            }
+            headers = {
+                "Content-Type": "application/json"
+            }
+            full_url = f"{URL}/practice/unregister"
 
+            print(f"Sending unregister request to: {full_url}")  # Debug print
+            print(f"Payload: {payload}")
+
+            async with session.delete(full_url, json=payload, headers=headers) as response:
+                text_response = await response.text()
+                print(f"Response status: {response.status}")
+                print(f"Response text: {text_response}")
+                return response.status == 200, text_response.strip('"')
+        except aiohttp.ClientError as e:
+            return False, f"Failed to connect to backend: {str(e)}"
+        except Exception as e:
+            return False, f"Unexpected error: {str(e)}"
 
 
 
@@ -224,7 +243,53 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
         else:
             await user.send(f"An error occured... {message}")
 
+@client.event
+async def on_raw_reaction_remove(payload: RawReactionActionEvent):
+    if payload.emoji.name != "✅":
+        return
 
+    channel = client.get_channel(payload.channel_id)
+
+    if not channel:
+        return
+
+    message = await channel.fetch_message(payload.message_id)
+
+    if not message:
+        return
+
+    if message.author != client.user or not message.embeds:
+        return
+
+    user_id = str(payload.user_id)
+    practice_id = None
+
+    for field in message.embeds[0].fields:
+        if field.name == "practice_id":
+            practice_id = field.value
+            break
+
+    if practice_id:
+        print(f"User {user_id} removed reaction from practice {practice_id}")
+        success, message = await unregister_from_practice(practice_id, user_id)
+        user = await client.fetch_user(int(user_id))
+
+        if success:
+            await user.send(
+                embed=Embed(
+                    title="Practice Registration Cancelled",
+                    description=message,
+                    color=Color.orange()
+                )
+            )
+        else:
+            await user.send(
+                embed=Embed(
+                    title="Error Cancelling Registration",
+                    description=f"An error occurred: {message}",
+                    color=Color.red()
+                )
+            )
 
 async def run_discord_bot():
     await client.start(token=TOKEN)
