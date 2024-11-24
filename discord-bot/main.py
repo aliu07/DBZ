@@ -1,3 +1,4 @@
+from json import JSONDecodeError
 import os
 import asyncio
 import uvicorn
@@ -5,8 +6,9 @@ import re
 from typing import Final
 from api_server import init_api, app
 import aiohttp
+
 from dotenv import load_dotenv
-from discord import Intents, Client, Message, Embed, Color, DMChannel
+from discord import Intents, Client, Message, Embed, Color, DMChannel, Interaction, RawReactionActionEvent
 from discord.ext import commands
 
 # LOAD TOKEN
@@ -39,13 +41,19 @@ client = commands.Bot(
     help_command=None
 )
 
+client.channel_id = CHANNEL_ID
+
 waiting_for_email = {}
 
 def is_valid_email(email: str) -> bool:
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return bool(re.match(pattern, email))
 
-async def send_to_backend(user_id: str, email: str):
+
+
+
+
+async def register_user(user_id: str, email: str):
     async with aiohttp.ClientSession() as session:
         try:
             payload = {
@@ -69,10 +77,45 @@ async def send_to_backend(user_id: str, email: str):
         except Exception as e:
             return False, f"Unexpected error: {str(e)}"
 
+
+async def sign_up_for_practice(practice_id: str, user_id: str):
+    async with aiohttp.ClientSession() as session:
+        try:
+            payload = {
+                "practice_id": practice_id,
+                "user_id": user_id
+            }
+            headers = {
+                "Content-Type": "application/json"
+            }
+            full_url = f"{URL}/practice/signup"
+
+            print(f"Sending request to: {full_url}")  # Debug print
+            print(f"Payload: {payload}")
+
+            async with session.post(full_url, json=payload, headers=headers) as response:
+                text_response = await response.text()
+                print(f"Response status: {response.status}")
+                print(f"Response text: {text_response}")
+                return response.status == 200, text_response.strip('"'), False
+        except aiohttp.ClientError as e:
+            return False, f"Failed to connect to backend: {str(e)}", False
+        except Exception as e:
+            return False, f"Unexpected error: {str(e)}", False
+
+
+
+
+
 # HANDLING BOT STARTUP
 @client.event
 async def on_ready() -> None:
+    await client.tree.sync()
     print(f'{client.user} is now running!')
+
+
+
+
 
 # WHEN MEMBER JOINS
 @client.event
@@ -96,6 +139,9 @@ async def on_member_join(member) -> None:
         print(f"Couldn't send direct message to {member.name}: {e}")
 
 
+
+
+
 # Handle DM messages for email collection
 @client.event
 async def on_message(message: Message) -> None:
@@ -112,7 +158,7 @@ async def on_message(message: Message) -> None:
             return
 
         # Send to backend
-        success, response_message = await send_to_backend(
+        success, response_message = await register_user(
             str(message.author.id),
             email
         )
@@ -140,8 +186,54 @@ async def on_message(message: Message) -> None:
     # Process commands as normal
     await client.process_commands(message)
 
+
+
+
+# HANDLE REACTIONS
+@client.event
+async def on_raw_reaction_add(payload: RawReactionActionEvent):
+    if payload.emoji.name != "✅":
+        return
+
+    channel = client.get_channel(payload.channel_id)
+
+    if not channel:
+        return
+
+    message = await channel.fetch_message(payload.message_id)
+
+    if not message:
+        return
+
+    if message.author != client.user or not message.embeds:
+        return
+
+    user_id = str(payload.user_id)
+    practice_id = None
+
+    for field in message.embeds[0].fields:
+        if field.name == "practice_id":
+            practice_id = field.value
+            break
+
+    if practice_id:
+        print(f"User {user_id} reacted to practice {practice_id}")
+        success, message, on_waitlist = await(sign_up_for_practice(practice_id, user_id))
+        user = await client.fetch_user(int(user_id))
+
+        if success or on_waitlist:
+            await user.send(f"{message}")
+        else:
+            await user.send(f"An error occured... {message}")
+
+
+
 async def run_discord_bot():
     await client.start(token=TOKEN)
+
+
+
+
 
 async def run_api_server():
     config = uvicorn.Config(
@@ -153,36 +245,58 @@ async def run_api_server():
     server = uvicorn.Server(config)
     await server.serve()
 
+
+
+
+
 # COMMANDS
-@client.command(name="schedule", description="Sends the semester's schedule")
-async def schedule(ctx):
-    await ctx.send(f'Here is the schedule {ctx.author.name}!')
 
-@client.command(name="lineup", description="Sends the next practice lineup")
-async def lineup(ctx):
-    await ctx.send(f'Here is the lineup {ctx.author.name}!')
+@client.tree.command(name="schedule", description="Sends the semester's schedule")
+async def schedule(interaction: Interaction):
+    await interaction.response.send_message(f'Here is the schedule {interaction.user.name}!')
 
-@client.command(name="help", description="Shows all available commands")
-async def help(ctx):
+
+
+@client.tree.command(name="lineup", description="Sends the next practice lineup")
+async def lineup(interaction: Interaction):
+    await interaction.response.send_message(f'Here is the lineup {interaction.user.name}!')
+
+
+
+@client.tree.command(name="fun_fact", description="Gives a fun fact!")
+async def fun_fact(interaction: Interaction):
+    await interaction.response.send_message(f'Hey {interaction.user.name}! \n Did you know that your VP Finance, Alexander has not been in ONE DBZ Tiktok??')
+
+
+
+@client.tree.command(name="help", description="Shows all available commands")
+async def help(interaction: Interaction):
     help_embed = Embed(
         title="Bot Commands",
         description="Here are all available commands:",
         color=Color.red()
     )
 
-    for command in client.commands:
+    for command in client.tree.walk_commands():
         help_embed.add_field(
             name=f"!{command.name}",
             value=command.description or "No description available",
             inline=False
         )
 
-    await ctx.send(embed=help_embed)
+    await interaction.response.send_message(embed=help_embed)
+
+
+
+
 
 # MAIN ENTRY POINT
 async def main() -> None:
     init_api(client)
     await asyncio.gather(run_discord_bot(), run_api_server())
+
+
+
 
 
 if __name__ == '__main__':
