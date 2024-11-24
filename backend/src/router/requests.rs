@@ -16,5 +16,5 @@ pub struct CreatePracticeRequest {
 #[derive(Deserialize)]
 pub struct SignupRequest {
   pub practice_id: String,
-  pub user_id: String
+  pub discord_id: String
 }

@@ -1,3 +1,6 @@
+use crate::DB;
+use std::sync::Arc;
+
 use crate::sheets::models::PracticeSheetData;
 
 use super::user::{Side, UserType};
@@ -12,6 +15,12 @@ pub enum PracticeError {
     Locked,
     #[error("Practice and waitlist are full")]
     Full,
+    #[error("User not found")]
+    UserNotFound,
+    #[error("User has no ID")]
+    NoUserId,
+    #[error("Database error: {0}")]
+    DatabaseError(String),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -86,14 +95,23 @@ impl Practice {
         }
     }
 
-    pub(crate) fn add_participant(
+    pub(crate) async fn add_participant(
         &mut self,
-        user_id: ObjectId,
+        discord_id: &str,
         side: &Side,
+        db: Arc<DB>,
     ) -> Result<bool, PracticeError> {
         if self.is_locked() {
             return Err(PracticeError::Locked);
         }
+
+        let user = db
+            .get_user_by_discord_id(discord_id)
+            .await
+            .map_err(|e| PracticeError::DatabaseError(e.to_string()))?
+            .ok_or(PracticeError::UserNotFound)?;
+
+        let user_id = user.id.ok_or(PracticeError::NoUserId)?;
 
         let (spots, waitlist) = match side {
             Side::Left => (&mut self.left_side, &mut self.left_side_waitlist),

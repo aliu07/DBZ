@@ -81,7 +81,7 @@ async def sign_up_for_practice(practice_id: str, user_id: str):
         try:
             payload = {
                 "practice_id": practice_id,
-                "user_id": user_id
+                "discord_id": user_id
             }
             headers = {
                 "Content-Type": "application/json"

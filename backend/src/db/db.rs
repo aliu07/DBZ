@@ -78,6 +78,11 @@ impl DB {
         Ok(collection.find_one(doc! {"_id" : user_id}).await?)
     }
 
+    pub async fn get_user_by_discord_id(&self, discord_id: &str) -> Result<Option<User>, Box<dyn Error>> {
+        let collection = self.db.collection::<User>("users");
+        Ok(collection.find_one(doc! {"discord_id" : discord_id}).await?)
+    }
+
     pub async fn update_practice(&self, practice: &Practice) -> Result<(), Box<dyn Error>> {
         let collection = self.db.collection::<Practice>("practices");
         collection
