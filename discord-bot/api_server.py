@@ -1,10 +1,13 @@
 from fastapi import FastAPI, HTTPException, status
 from models import Practice
-from discord import Client
+from discord import Client, Embed, Color
+from datetime import *
 
 
 app = FastAPI()
 discord_client: Client | None = None
+sign_up_limit = 34
+waitlist_limit = 12
 
 def init_api(client: Client):
     global discord_client
@@ -23,10 +26,53 @@ async def create_practice(practice: Practice):
     channel = discord_client.get_channel(channel_id)
 
     if channel:
-        await channel.send(f"Practice on {practice.start_time.strftime('%Y-%m-%d %H:%M')} is open!")
+        # Format dates and times
+        practice_date = practice.start_time.strftime('%A, %B %d, %Y')
+        start_time = practice.start_time.strftime('%I:%M %p')
+        end_time = practice.end_time.strftime('%I:%M %p')
+
+        # Calculate duration
+        duration = practice.end_time - practice.start_time
+        duration_hours = duration.total_seconds() / 3600
+
+        practice_embed = Embed(
+            title="🏃 New Practice Session",
+            description="A new practice session has been scheduled!",
+            color=Color.red(),
+        )
+
+        practice_embed.add_field(
+            name="📅 Date",
+            value=practice_date,
+            inline=True
+        )
+        practice_embed.add_field(
+            name="⏰ Time",
+            value=f"{start_time} - {end_time}\n({duration_hours:.1f} hours)",
+            inline=True
+        )
+
+        practice_embed.add_field(
+            name="👥 Capacity",
+            value=f"```34 spots\nWaitlist: 12 spots```",
+            inline=False
+        )
+
+        practice_embed.add_field(
+            name="📝 How to Sign Up",
+            value="• React with ✅ to join practice\n"
+                    "• Remove your reaction to cancel",
+            inline=False
+        )
+
+        message = await channel.send(embed=practice_embed)
+        await message.add_reaction("✅")  # Participate
+
         return {
             "status": "success",
-            "message": "Practice notification sent"
+            "message": "Practice notification sent",
+            "practice_id": practice.practice_id,
+            "channel_id": channel_id
         }
 
     raise HTTPException(

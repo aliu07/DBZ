@@ -37,6 +37,8 @@ client = commands.Bot(
     help_command=None
 )
 
+client.channel_id = CHANNEL_ID
+
 waiting_for_email = {}
 
 def is_valid_email(email: str) -> bool:
