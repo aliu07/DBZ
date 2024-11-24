@@ -1,3 +1,4 @@
+from json import JSONDecodeError
 import os
 import asyncio
 import uvicorn
@@ -86,18 +87,19 @@ async def sign_up_for_practice(practice_id: str, user_id: str):
                 "Content-Type": "application/json"
             }
             full_url = f"{URL}/practice/signup"
+
             print(f"Sending request to: {full_url}")  # Debug print
             print(f"Payload: {payload}")
+
             async with session.post(full_url, json=payload, headers=headers) as response:
-                if response.status == 200:
-                    return True, "You have signed up successfully!"
-                else:
-                    response_text = await response.text()
-                    return False, response_text
+                text_response = await response.text()
+                print(f"Response status: {response.status}")
+                print(f"Response text: {text_response}")
+                return response.status == 200, text_response.strip('"'), False
         except aiohttp.ClientError as e:
-            return False, f"Failed to connect to backend: {str(e)}"
+            return False, f"Failed to connect to backend: {str(e)}", False
         except Exception as e:
-            return False, f"Unexpected error: {str(e)}"
+            return False, f"Unexpected error: {str(e)}", False
 
 
 
@@ -214,14 +216,13 @@ async def on_raw_reaction_add(payload: RawReactionActionEvent):
 
     if practice_id:
         print(f"User {user_id} reacted to practice {practice_id}")
-        success, message = await(sign_up_for_practice(practice_id, user_id))
+        success, message, on_waitlist = await(sign_up_for_practice(practice_id, user_id))
+        user = await client.fetch_user(int(user_id))
 
-        if success:
-            user = await client.fetch_user(int(user_id))
-            await user.send(f"✅ {message}")
+        if success or on_waitlist:
+            await user.send(f"{message}")
         else:
-            user = await client.fetch_user(int(user_id))
-            await user.send(f"An error occured... Coul not sign you up for practice...{message}")
+            await user.send(f"An error occured... {message}")
 
 
 
