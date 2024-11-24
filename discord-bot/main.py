@@ -18,6 +18,8 @@ if not TOKEN:
 if not CHANNEL_ID:
     raise ValueError("CHANNEL_ID environment variable is not set")
 URL: Final[str] = os.getenv('BACKEND_API_URL') or 'http://backend:8000'  # Base URL
+client.channel_id = CHANNEL_ID
+
 
 # BOT SETUP
 intents: Intents = Intents.default()

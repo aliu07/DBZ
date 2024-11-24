@@ -11,6 +11,7 @@ path = "src/main.rs"
 axum = "0.7.9"
 bson = { version = "2.13.0", features = ["chrono-0_4"] }
 chrono = { version = "0.4.38", features = ["serde"] }
+chrono-tz = "0.10.0"
 dotenv = "0.15.0"
 futures = "0.3.31"
 google-sheets4 = "6.0.0"

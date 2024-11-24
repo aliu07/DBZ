@@ -135,4 +135,8 @@ impl Practice {
           }
       }
     }
+
+    pub fn is_future(&self) -> bool {
+        self.start_time > Utc::now()
+    }
 }

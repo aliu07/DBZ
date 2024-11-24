@@ -1,5 +1,7 @@
+use chrono_tz::America::New_York;
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Datelike, NaiveDateTime, Utc};
+use chrono::{
+  TimeZone,DateTime, Datelike, NaiveDateTime, Utc};
 use std::error::Error;
 use tracing::info;
 
@@ -195,8 +197,10 @@ impl PracticeSheetData {
 
       // Parse using a simpler format string
       let naive_dt = NaiveDateTime::parse_from_str(&datetime_str, "%B %d %I:%M %p %Y")?;
+      let est = New_York.from_local_datetime(&naive_dt).unwrap();
 
-      // Convert to UTC
-      Ok(DateTime::from_naive_utc_and_offset(naive_dt, Utc))
+      let utc = est.with_timezone(&Utc);
+      tracing::info!("Converted time - EST: {}, UTC: {}", est, utc);
+      Ok(utc)
   }
 }
