@@ -1,4 +1,9 @@
-use axum::{extract::State, middleware, routing::post, Json, Router};
+use axum::{
+    extract::State,
+    middleware,
+    routing::{delete, post},
+    Json, Router,
+};
 use mongodb::bson::oid::ObjectId;
 use tower_http::trace::TraceLayer;
 use tracing::info;
@@ -8,7 +13,7 @@ use crate::{
         db::DB,
         practice::{Practice, PracticeError},
     },
-    logging::middleware::logging_middleware,
+    logging::middleware::logging_middleware, router::responses::{PracticeStartInfo, WaitlistTransferNotification},
 };
 use std::sync::Arc;
 
@@ -22,6 +27,7 @@ pub fn create_router(db: Arc<DB>) -> Router {
         .route("/register", post(register_discord_user))
         .route("/practice", post(create_practice))
         .route("/practice/signup", post(signup_for_practice))
+        .route("/practice/unregister", delete(unregister_for_practice))
         .layer(middleware::from_fn(logging_middleware))
         .layer(TraceLayer::new_for_http())
         .with_state(db)
@@ -122,3 +128,71 @@ async fn signup_for_practice(
         Err(e) => Err(e.to_string()),
     }
 }
+
+    async fn unregister_for_practice(
+        State(db): State<Arc<DB>>,
+        Json(req): Json<SignupRequest>,
+    ) -> Result<Json<SignupResponse>, String> {
+        info!(
+            "Processing unregister request for practice_id {}, discord_id: {}",
+            req.practice_id, req.discord_id
+        );
+
+        let practice_id = ObjectId::parse_str(&req.practice_id).map_err(|e| e.to_string())?;
+
+        let mut practice = db
+            .get_practice(practice_id)
+            .await
+            .map_err(|e| e.to_string())?
+            .ok_or("Practice not found")?;
+
+        // Remove participant and get waitlist user if any
+        match practice
+            .remove_participant(&req.discord_id, db.clone())
+            .await
+        {
+            Ok(maybe_waitlist_user) => {
+                // Update practice in database
+                db.update_practice(&practice)
+                    .await
+                    .map_err(|e| e.to_string())?;
+
+                // If someone from waitlist was moved to main list, notify them
+                if let Some(waitlist_user_id) = maybe_waitlist_user {
+                    if let Ok(Some(user)) = db.get_user(waitlist_user_id).await {
+                        if let Some(discord_id) = user.discord_id {
+                            // Send notification to Discord bot
+                            let client = reqwest::Client::new();
+                            let notification = WaitlistTransferNotification {
+                                practice: PracticeStartInfo {
+                                    practice_id: practice.id.unwrap().to_string(),
+                                    start_time: practice.start_time,
+                                    end_time: practice.end_time,
+                                },
+                                discord_id: discord_id.parse().unwrap_or_default(),
+                            };
+
+                            // Ignore errors as this is not critical
+                            let _ = client
+                                .post("http://discord-bot:3001/waitlisted-msg")
+                                .json(&notification)
+                                .send()
+                                .await;
+                        }
+                    }
+                }
+
+                Ok(Json(SignupResponse {
+                    success: true,
+                    message: "Successfully unregistered from practice".to_string(),
+                    on_waitlist: false,
+                }))
+            }
+            Err(PracticeError::UserNotFound) => Ok(Json(SignupResponse {
+                success: false,
+                message: "User not registered for this practice".to_string(),
+                on_waitlist: false,
+            })),
+            Err(e) => Err(e.to_string()),
+        }
+    }

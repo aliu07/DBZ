@@ -133,28 +133,95 @@ impl Practice {
     }
 
     pub fn transfer_waitlist(&mut self, prev: &Practice) {
-      for waitlist_left in prev.left_side_waitlist.iter().flatten() {
-        if let Some(empty_spot) = self.left_side
-          .iter_mut()
-          .find(|spot| spot.is_none()) {
-            *empty_spot = Some(*waitlist_left);
-        } else {
-          panic!();
+        for waitlist_left in prev.left_side_waitlist.iter().flatten() {
+            if let Some(empty_spot) = self.left_side.iter_mut().find(|spot| spot.is_none()) {
+                *empty_spot = Some(*waitlist_left);
+            } else {
+                panic!();
+            }
         }
-      }
 
-      for waitlist_right in prev.right_side_waitlist.iter().flatten() {
-        if let Some(empty_spot) = self.right_side
-          .iter_mut()
-          .find(|spot| spot.is_none()) {
-            *empty_spot = Some(*waitlist_right);
-          } else {
-            panic!();
-          }
-      }
+        for waitlist_right in prev.right_side_waitlist.iter().flatten() {
+            if let Some(empty_spot) = self.right_side.iter_mut().find(|spot| spot.is_none()) {
+                *empty_spot = Some(*waitlist_right);
+            } else {
+                panic!();
+            }
+        }
     }
 
     pub fn is_future(&self) -> bool {
         self.start_time > Utc::now()
+    }
+
+    pub async fn remove_participant(
+        &mut self,
+        discord_id: &str,
+        db: Arc<DB>,
+    ) -> Result<Option<ObjectId>, PracticeError> {
+        let user = db
+            .get_user_by_discord_id(discord_id)
+            .await
+            .map_err(|e| PracticeError::DatabaseError(e.to_string()))?
+            .ok_or(PracticeError::UserNotFound)?;
+
+        let user_id = user.id.ok_or(PracticeError::NoUserId)?;
+
+        // Check left side main list
+        if let Some(pos) = self
+            .left_side
+            .iter()
+            .position(|id| id.as_ref() == Some(&user_id))
+        {
+            self.left_side[pos] = None;
+
+            // Check left waitlist for replacement
+            if let Some(waitlist_pos) = self.left_side_waitlist.iter().position(|id| id.is_some()) {
+                let waitlist_user = self.left_side_waitlist[waitlist_pos].take();
+                self.left_side[pos] = waitlist_user;
+                return Ok(waitlist_user);
+            }
+            return Ok(None);
+        }
+
+        // Check right side main list
+        if let Some(pos) = self
+            .right_side
+            .iter()
+            .position(|id| id.as_ref() == Some(&user_id))
+        {
+            self.right_side[pos] = None;
+
+            // Check right waitlist for replacement
+            if let Some(waitlist_pos) = self.right_side_waitlist.iter().position(|id| id.is_some())
+            {
+                let waitlist_user = self.right_side_waitlist[waitlist_pos].take();
+                self.right_side[pos] = waitlist_user;
+                return Ok(waitlist_user);
+            }
+            return Ok(None);
+        }
+
+        // Check left waitlist
+        if let Some(pos) = self
+            .left_side_waitlist
+            .iter()
+            .position(|id| id.as_ref() == Some(&user_id))
+        {
+            self.left_side_waitlist[pos] = None;
+            return Ok(None);
+        }
+
+        // Check right waitlist
+        if let Some(pos) = self
+            .right_side_waitlist
+            .iter()
+            .position(|id| id.as_ref() == Some(&user_id))
+        {
+            self.right_side_waitlist[pos] = None;
+            return Ok(None);
+        }
+
+        Err(PracticeError::UserNotFound)
     }
 }
