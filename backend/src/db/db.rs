@@ -54,7 +54,7 @@ impl DB {
     pub async fn update_user(&self, user: &User) -> Result<(), Box<dyn Error>> {
         let collection = self.db.collection::<User>("users");
         collection
-            .replace_one(doc! { "_id" : &user.id.unwrap()}, user)
+            .replace_one(doc! { "discord_id" : &user.id.unwrap()}, user)
             .await?;
         Ok(())
     }
