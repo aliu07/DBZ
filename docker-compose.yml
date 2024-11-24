@@ -29,7 +29,7 @@ services:
       - GOOGLE_CREDENTIALS_PATH=/app/credentials/sheets-credentials.json
       - FORM_ID=1Gw84_lGeBANXNUhJ7aF6moUNKZt2GMKQfWr4X7nUlos
       - FORM_RANGE=Form Responses 1!A:H
-      - PRACTICE_ID=1ky6VnQ0LOpClSO4H0v_tQc0vsQK1buLzRjzTUvcMRpo
+      - PRACTICE_ID=1tbuZYs9vGBhWo4YwakKapTl3xdWHeb_Lfu_X6lk_vOk
       - PRACTICE_RANGE=A1:N40
       - CARGO_BUILD_JOBBS=4
     volumes:

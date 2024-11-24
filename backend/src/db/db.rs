@@ -68,7 +68,7 @@ impl DB {
     pub async fn get_practice(
         &self,
         practice_id: ObjectId,
-    ) -> Result<Option<Practice>, Box<dyn Error>> {
+    ) -> Result<Option<Practice>, Box<dyn Error + Send + Sync>> {
         let collection = self.db.collection::<Practice>("practices");
         Ok(collection.find_one(doc! {"_id": practice_id}).await?)
     }
@@ -78,7 +78,7 @@ impl DB {
         Ok(collection.find_one(doc! {"_id" : user_id}).await?)
     }
 
-    pub async fn update_practice(&self, practice: &Practice) -> Result<(), Box<dyn Error>> {
+    pub async fn update_practice(&self, practice: &Practice) -> Result<(), Box<dyn Error + Send + Sync>> {
         let collection = self.db.collection::<Practice>("practices");
         collection
             .replace_one(doc! {"_id" : practice.id.unwrap()}, practice)
@@ -159,5 +159,28 @@ impl DB {
         Ok(collection
             .find_one(doc! {"date": date.to_rfc3339()})
             .await?)
+    }
+
+    pub async fn get_previous_practice(
+      &self,
+      curr_practice: &Practice
+    ) -> Result<Option<Practice>, Box<dyn Error + Send + Sync>> {
+      let collection = self.db.collection::<Practice>("practices");
+      let previous_practice_time = curr_practice.start_time - chrono::Duration::weeks(1);
+
+      Ok(collection
+        .find_one(doc!{"start_time" : previous_practice_time.to_rfc3339()})
+        .await?)
+    }
+    pub async fn get_all_practices(&self) -> Result<Vec<Practice>, Box<dyn Error>> {
+        let collection = self.db.collection::<Practice>("practices");
+        let mut cursor = collection.find(doc!{}).await?;
+
+        let mut practices = Vec::new();
+        while let Some(practice) = cursor.try_next().await? {
+            practices.push(practice);
+        }
+
+        Ok(practices)
     }
 }
