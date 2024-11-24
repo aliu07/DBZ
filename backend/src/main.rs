@@ -30,6 +30,16 @@ async fn main() {
             .expect("Failed to initialize form sheets client"),
     );
 
+    let practice_client = Arc::new(
+      SheetsClient::init_practice_client(db.clone())
+        .await
+        .expect("Failed to intialize practice client")
+    );
+
+    practice_client.initial_practice_sync()
+      .await
+      .expect("Failed to init sync to practice sheets");
+
     let app = create_router(db.clone());
 
     let scheduler = JobScheduler::new().await.unwrap();

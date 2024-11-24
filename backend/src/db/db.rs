@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use futures::TryStreamExt;
 use mongodb::{
     bson::{doc, oid::ObjectId},
@@ -120,6 +120,7 @@ impl DB {
         info!("Successfully updated sheet metadata");
         Ok(())
     }
+
     pub async fn get_practices_opening_soon(
         &self,
     ) -> Result<Vec<Practice>, Box<dyn Error + Send + Sync>> {
@@ -148,5 +149,15 @@ impl DB {
         }
 
         Ok(practices)
+    }
+
+    pub async fn get_practice_by_date(
+        &self,
+        date: DateTime<Utc>,
+    ) -> Result<Option<Practice>, Box<dyn Error>> {
+        let collection = self.db.collection::<Practice>("practices");
+        Ok(collection
+            .find_one(doc! {"date": date.to_rfc3339()})
+            .await?)
     }
 }

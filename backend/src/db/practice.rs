@@ -1,3 +1,5 @@
+use crate::sheets::models::PracticeSheetData;
+
 use super::user::{Side, UserType};
 use chrono::{DateTime, Utc};
 use mongodb::bson::oid::ObjectId;
@@ -41,6 +43,20 @@ impl Practice {
         }
     }
 
+    pub fn from_sheet_data(data: &PracticeSheetData) -> Self {
+        Self {
+            id: None,
+            date: data.date,
+            start_time: data.date,
+            end_time: data.date + chrono::Duration::hours(1),
+            left_side: vec![None; 17], // We'll update these after creating users
+            right_side: vec![None; 17],
+            left_side_waitlist: vec![None; 6],
+            right_side_waitlist: vec![None; 6],
+        }
+    }
+
+    //TO DEPRCEATE
     pub fn is_locked(&self) -> bool {
         let now = Utc::now();
         let unlock_time = self.start_time - chrono::Duration::hours(1);
@@ -57,7 +73,7 @@ impl Practice {
         spots.iter().filter(|spot| spot.is_some()).count()
     }
 
-    pub (crate) fn determine_side(&self, side: &Side) -> Side {
+    pub(crate) fn determine_side(&self, side: &Side) -> Side {
         match side {
             Side::NA => {
                 if self.count_side(&Side::Right) >= self.count_side(&Side::Left) {
@@ -70,7 +86,11 @@ impl Practice {
         }
     }
 
-    pub(crate) fn add_participant(&mut self, user_id: ObjectId, side: &Side) -> Result<bool, PracticeError> {
+    pub(crate) fn add_participant(
+        &mut self,
+        user_id: ObjectId,
+        side: &Side,
+    ) -> Result<bool, PracticeError> {
         if self.is_locked() {
             return Err(PracticeError::Locked);
         }
