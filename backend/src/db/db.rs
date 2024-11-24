@@ -160,4 +160,16 @@ impl DB {
             .find_one(doc! {"date": date.to_rfc3339()})
             .await?)
     }
+
+    pub async fn get_previous_practice(
+      &self,
+      curr_practice: &Practice
+    ) -> Result<Option<Practice>, Box<dyn Error>> {
+      let collection = self.db.collection::<Practice>("practices");
+      let previous_practice_time = curr_practice.start_time - chrono::Duration::weeks(1);
+
+      Ok(collection
+        .find_one(doc!{"start_time" : previous_practice_time.to_rfc3339()})
+        .await?)
+    }
 }

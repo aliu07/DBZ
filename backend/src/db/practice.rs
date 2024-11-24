@@ -113,4 +113,26 @@ impl Practice {
 
         Err(PracticeError::Full)
     }
+
+    pub fn transfer_waitlist(&mut self, prev: &Practice) {
+      for waitlist_left in prev.left_side_waitlist.iter().flatten() {
+        if let Some(empty_spot) = self.left_side
+          .iter_mut()
+          .find(|spot| spot.is_none()) {
+            *empty_spot = Some(*waitlist_left);
+        } else {
+          panic!();
+        }
+      }
+
+      for waitlist_right in prev.right_side_waitlist.iter().flatten() {
+        if let Some(empty_spot) = self.right_side
+          .iter_mut()
+          .find(|spot| spot.is_none()) {
+            *empty_spot = Some(*waitlist_right);
+          } else {
+            panic!();
+          }
+      }
+    }
 }

@@ -2,6 +2,7 @@ mod db;
 mod logging;
 mod router;
 mod sheets;
+mod jobs;
 
 use db::practice::Practice;
 use router::responses::PracticeStartInfo;
