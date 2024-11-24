@@ -5,8 +5,9 @@ import re
 from typing import Final
 from api_server import init_api, app
 import aiohttp
+
 from dotenv import load_dotenv
-from discord import Intents, Client, Message, Embed, Color, DMChannel, Interaction
+from discord import Intents, Client, Message, Embed, Color, DMChannel, Interaction, RawReactionActionEvent
 from discord.ext import commands
 
 # LOAD TOKEN
@@ -49,7 +50,7 @@ def is_valid_email(email: str) -> bool:
 
 
 
-async def send_to_backend(user_id: str, email: str):
+async def register_user(user_id: str, email: str):
     async with aiohttp.ClientSession() as session:
         try:
             payload = {
@@ -73,6 +74,30 @@ async def send_to_backend(user_id: str, email: str):
         except Exception as e:
             return False, f"Unexpected error: {str(e)}"
 
+
+async def sign_up_for_practice(practice_id: str, user_id: str):
+    async with aiohttp.ClientSession() as session:
+        try:
+            payload = {
+                "practice_id": practice_id,
+                "user_id": user_id
+            }
+            headers = {
+                "Content-Type": "application/json"
+            }
+            full_url = f"{URL}/practice/signup"
+            print(f"Sending request to: {full_url}")  # Debug print
+            print(f"Payload: {payload}")
+            async with session.post(full_url, json=payload, headers=headers) as response:
+                if response.status == 200:
+                    return True, "You have signed up successfully!"
+                else:
+                    response_text = await response.text()
+                    return False, response_text
+        except aiohttp.ClientError as e:
+            return False, f"Failed to connect to backend: {str(e)}"
+        except Exception as e:
+            return False, f"Unexpected error: {str(e)}"
 
 
 
@@ -129,7 +154,7 @@ async def on_message(message: Message) -> None:
             return
 
         # Send to backend
-        success, response_message = await send_to_backend(
+        success, response_message = await register_user(
             str(message.author.id),
             email
         )
@@ -158,6 +183,45 @@ async def on_message(message: Message) -> None:
     await client.process_commands(message)
 
 
+
+
+# HANDLE REACTIONS
+@client.event
+async def on_raw_reaction_add(payload: RawReactionActionEvent):
+    if payload.emoji.name != "✅":
+        return
+
+    channel = client.get_channel(payload.channel_id)
+
+    if not channel:
+        return
+
+    message = await channel.fetch_message(payload.message_id)
+
+    if not message:
+        return
+
+    if message.author != client.user or not message.embeds:
+        return
+
+    user_id = str(payload.user_id)
+    practice_id = None
+
+    for field in message.embeds[0].fields:
+        if field.name == "practice_id":
+            practice_id = field.value
+            break
+
+    if practice_id:
+        print(f"User {user_id} reacted to practice {practice_id}")
+        success, message = await(sign_up_for_practice(practice_id, user_id))
+
+        if success:
+            user = await client.fetch_user(int(user_id))
+            await user.send(f"✅ {message}")
+        else:
+            user = await client.fetch_user(int(user_id))
+            await user.send(f"An error occured... Coul not sign you up for practice...{message}")
 
 
 

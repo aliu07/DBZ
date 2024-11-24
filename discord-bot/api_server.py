@@ -42,6 +42,12 @@ async def create_practice(practice: Practice):
         )
 
         practice_embed.add_field(
+            name="practice_id",
+            value=practice.practice_id,
+            inline=False
+        )
+
+        practice_embed.add_field(
             name="📅 Date",
             value=practice_date,
             inline=True
