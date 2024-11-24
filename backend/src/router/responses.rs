@@ -14,3 +14,9 @@ pub struct PracticeStartInfo{
   pub start_time: DateTime<Utc>,
   pub end_time: DateTime<Utc>
 }
+
+#[derive(Serialize)]
+pub struct WaitlistTransferNotification {
+  pub practice: PracticeStartInfo,
+  pub discord_id: String
+}

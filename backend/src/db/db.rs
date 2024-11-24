@@ -73,7 +73,7 @@ impl DB {
         Ok(collection.find_one(doc! {"_id": practice_id}).await?)
     }
 
-    pub async fn get_user(&self, user_id: ObjectId) -> Result<Option<User>, Box<dyn Error>> {
+    pub async fn get_user(&self, user_id: ObjectId) -> Result<Option<User>, Box<dyn Error + Send + Sync>> {
         let collection = self.db.collection::<User>("users");
         Ok(collection.find_one(doc! {"_id" : user_id}).await?)
     }

@@ -1,13 +1,13 @@
 use chrono::{DateTime, Duration, Utc};
 use mongodb::bson::oid::ObjectId;
 use reqwest::Client as HttpClient;
+use std::{error::Error, sync::Arc, time::Duration as StdDuration};
 use tokio_cron_scheduler::{Job, JobScheduler};
 use tracing::info;
-use std::{error::Error, sync::Arc, time::Duration as StdDuration};
 
 use crate::db::db::DB;
 use crate::db::practice::Practice;
-use crate::router::responses::PracticeStartInfo;
+use crate::router::responses::{PracticeStartInfo, WaitlistTransferNotification};
 
 pub async fn schedule_practice_jobs(
     practice: &Practice,
@@ -23,17 +23,27 @@ pub async fn schedule_practice_jobs(
 
     // Only schedule if times are in the future
     if waitlist_transfer_time > now {
-        info!("Creating job for waitlist transfer @ {}", waitlist_transfer_time);
-        schedule_waitlist_transfer(scheduler, db.clone(), practice_id, waitlist_transfer_time).await?;
+        info!(
+            "Creating job for waitlist transfer @ {}",
+            waitlist_transfer_time
+        );
+        schedule_waitlist_transfer(scheduler, db.clone(), practice_id, waitlist_transfer_time)
+            .await?;
     } else {
-        info!("Skipping waitlist transfer job as time {} has passed", waitlist_transfer_time);
+        info!(
+            "Skipping waitlist transfer job as time {} has passed",
+            waitlist_transfer_time
+        );
     }
 
     if unlock_time > now {
         info!("Creating job for unlock time transfer @ {}", unlock_time);
         schedule_practice_unlock(scheduler, db.clone(), practice_id, unlock_time).await?;
     } else {
-        info!("Skipping unlock time job as time {} has passed", unlock_time);
+        info!(
+            "Skipping unlock time job as time {} has passed",
+            unlock_time
+        );
     }
 
     Ok(())
@@ -47,20 +57,22 @@ async fn schedule_waitlist_transfer(
 ) -> Result<(), Box<dyn Error>> {
     scheduler
         .add(
-            Job::new_one_shot_async(execution_time
-              .signed_duration_since(Utc::now())
-              .to_std()
-              .map_err(|_| format!("Target time is in the past {}", execution_time))?,
-            move |_uuid, _l| {
-                let db = db.clone();
-                let practice_id = practice_id.clone();
-                Box::pin(async move {
-                    info!("Executing waitlist transfer for practice {}", practice_id);
-                    if let Err(e) = handle_waitlist_transfer(db, practice_id).await {
-                        tracing::error!("Waitlist transfer failed: {}", e);
-                    }
-                })
-            })
+            Job::new_one_shot_async(
+                execution_time
+                    .signed_duration_since(Utc::now())
+                    .to_std()
+                    .map_err(|_| format!("Target time is in the past {}", execution_time))?,
+                move |_uuid, _l| {
+                    let db = db.clone();
+                    let practice_id = practice_id.clone();
+                    Box::pin(async move {
+                        info!("Executing waitlist transfer for practice {}", practice_id);
+                        if let Err(e) = handle_waitlist_transfer(db, practice_id).await {
+                            tracing::error!("Waitlist transfer failed: {}", e);
+                        }
+                    })
+                },
+            )
             .unwrap(),
         )
         .await?;
@@ -77,9 +89,9 @@ async fn schedule_practice_unlock(
         .add(
             Job::new_one_shot_async(
                 execution_time
-                  .signed_duration_since(Utc::now())
-                  .to_std()
-                  .map_err(|_| format!("Target time is in the past {}", execution_time))?,
+                    .signed_duration_since(Utc::now())
+                    .to_std()
+                    .map_err(|_| format!("Target time is in the past {}", execution_time))?,
                 move |_uuid, _l| {
                     let db = db.clone();
                     let practice_id = practice_id.clone();
@@ -109,8 +121,55 @@ async fn handle_waitlist_transfer(
         );
 
         if let Some(previous_practice) = db.get_previous_practice(&practice).await? {
+            let all_waitlist_users = previous_practice
+                .left_side
+                .iter()
+                .chain(previous_practice.right_side.iter())
+                .filter_map(|id| id.as_ref())
+                .collect::<Vec<_>>();
+
             practice.transfer_waitlist(&previous_practice);
             db.update_practice(&practice).await?;
+
+            let client = HttpClient::new();
+
+            for user_id in all_waitlist_users {
+              if let Some(user) = db.get_user(*user_id).await? {
+                if let Some(discord_id) = user.discord_id {
+                  let practice_info = PracticeStartInfo {
+                    practice_id: practice.id.unwrap().to_string(),
+                    start_time: practice.start_time,
+                    end_time: practice.end_time
+                  };
+
+                  let notification = WaitlistTransferNotification {
+                    practice: practice_info,
+                    discord_id : discord_id.clone()
+                  };
+
+                  info!(
+                      "Sending waitlist notification for user {} {} : {} for practice {:?}",
+                      user.first_name,
+                      user.last_name,
+                      discord_id,
+                      practice.id
+                  );
+
+                  let response = client.post("http://discord-bot:3001/waitlisted-msg")
+                    .json(&notification)
+                    .send()
+                    .await?;
+
+                  if !response.status().is_success() {
+                                                  info!(
+                                                      "Failed to send waitlist notification for user {}: {}",
+                                                      discord_id,
+                                                      response.status()
+                                                  );
+                                              }
+                }
+              }
+            }
 
             info!(
                 "Successfully transferred waitlist for practice {}",
@@ -122,7 +181,10 @@ async fn handle_waitlist_transfer(
     Ok(())
 }
 
-async fn notify_practice_unlock(db: Arc<DB>, practice_id: ObjectId) -> Result<(), Box<dyn Error + Send + Sync>> {
+async fn notify_practice_unlock(
+    db: Arc<DB>,
+    practice_id: ObjectId,
+) -> Result<(), Box<dyn Error + Send + Sync>> {
     if let Some(practice) = db.get_practice(practice_id).await? {
         let client = HttpClient::new();
         let practice_info = PracticeStartInfo {

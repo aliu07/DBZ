@@ -324,7 +324,7 @@ impl SheetsClient {
     pub async fn update_sheet_from_practice(
         &self,
         practice: &Practice,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
         let values = self.format_practice_for_sheet(practice).await?;
 
         // Update the sheet with the new values
@@ -348,7 +348,7 @@ impl SheetsClient {
     async fn format_practice_for_sheet(
         &self,
         practice: &Practice,
-    ) -> Result<Vec<Vec<JsonValue>>, Box<dyn Error>> {
+    ) -> Result<Vec<Vec<JsonValue>>, Box<dyn Error + Send + Sync>> {
         let mut values = Vec::new();
 
         // Add header row
