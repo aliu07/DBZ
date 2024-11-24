@@ -79,3 +79,20 @@ async def create_practice(practice: Practice):
         status_code=status.HTTP_404_NOT_FOUND,
         detail="Channel ID not found..."
     )
+
+@app.post('/waitlisted-msg', status_code=status.HTTP_201_CREATED)
+async def send_msg_to_waitlisted_user(practice: Practice, discord_id):
+    user = discord_client.get_user(discord_id)
+    if user:
+        message = f"Hey {user.name}, you have 5 MINUTES to react to claim for practice {practice.practice_id} starting at {practice.start_time} and ending at {practice.end_time}!"
+        await user.send(message)
+        return {
+            "status": "success",
+            "message": "Message sent to user"
+        }
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="User not found..."
+    )
+
